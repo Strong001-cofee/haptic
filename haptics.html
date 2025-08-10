@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>YouTube</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 900px;
+        margin: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 20px;
+      }
+      table,
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+      }
+      button {
+        margin: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Vibration Timeline Maker</h1>
+
+    <!-- YouTube video -->
+    <div id="player"></div>
+
+    <!-- Controls -->
+    <h3>Add Vibration Event</h3>
+    <label>Intensity: </label>
+    <select id="intensity">
+      <option value="short">Short (0.5s)</option>
+      <option value="medium">Medium (1.2s)</option>
+      <option value="long">Long (2s)</option>
+    </select>
+    <button onclick="addEvent()">Add Event at Current Time</button>
+
+    <!-- JSON Export/Import -->
+    <h3>Import/Export Timeline</h3>
+    <button onclick="exportJSON()">Export JSON</button>
+    <input type="file" id="importFile" accept=".json" />
+    <button onclick="importJSON()">Import JSON</button>
+
+    <!-- Timeline Table -->
+    <table id="eventsTable">
+      <thead>
+        <tr>
+          <th>Time (s)</th>
+          <th>Intensity</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      // Load YouTube API
+      let tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(tag);
+
+      let player;
+      let events = [];
+
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player("player", {
+          height: "360",
+          width: "640",
+          videoId: "mjBym9uKth4", // Change to desired video ID
+          events: {
+            onReady: onPlayerReady,
+            onStateChange: onPlayerStateChange,
+          },
+        });
+      }
+
+      function onPlayerReady() {
+        console.log("Player ready");
+      }
+
+      function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+          checkTime();
+        }
+      }
+
+      function addEvent() {
+        let time = Math.floor(player.getCurrentTime());
+        let intensity = document.getElementById("intensity").value;
+        events.push({ time, intensity });
+        renderEvents();
+      }
+
+      function deleteEvent(index) {
+        events.splice(index, 1);
+        renderEvents();
+      }
+
+      function editEvent(index) {
+        let newIntensity = prompt(
+          "Enter new intensity (short, medium, long):",
+          events[index].intensity
+        );
+        if (newIntensity) {
+          events[index].intensity = newIntensity.toLowerCase();
+          renderEvents();
+        }
+      }
+
+      function renderEvents() {
+        let tbody = document.querySelector("#eventsTable tbody");
+        tbody.innerHTML = "";
+        events.sort((a, b) => a.time - b.time);
+        events.forEach((event, i) => {
+          let row = `<tr>
+          <td>${event.time}</td>
+          <td>${event.intensity}</td>
+          <td>
+            <button onclick="editEvent(${i})">Edit</button>
+            <button onclick="deleteEvent(${i})">Delete</button>
+          </td>
+        </tr>`;
+          tbody.innerHTML += row;
+        });
+      }
+
+      function checkTime() {
+        let currentTime = Math.floor(player.getCurrentTime());
+        events.forEach((event) => {
+          if (event.time === currentTime) {
+            triggerVibration(event.intensity);
+          }
+        });
+        if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+          setTimeout(checkTime, 500);
+        }
+      }
+
+      function triggerVibration(intensity) {
+        if ("vibrate" in navigator) {
+          let duration;
+          if (intensity === "short") duration = 500; // 0.5s
+          if (intensity === "medium") duration = 1200; // 1.2s
+          if (intensity === "long") duration = 2000; // 2s
+          navigator.vibrate(duration);
+          console.log(`Vibrating (${intensity}) for ${duration}ms`);
+        } else {
+          console.log("Vibration not supported.");
+        }
+      }
+
+      function exportJSON() {
+        let dataStr = JSON.stringify(events, null, 2);
+        let blob = new Blob([dataStr], { type: "application/json" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = "vibration_timeline.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function importJSON() {
+        let fileInput = document.getElementById("importFile");
+        if (fileInput.files.length === 0) {
+          alert("Please select a JSON file first.");
+          return;
+        }
+        let reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            let imported = JSON.parse(e.target.result);
+            if (Array.isArray(imported)) {
+              events = imported;
+              renderEvents();
+              alert("Timeline imported successfully!");
+            } else {
+              alert("Invalid JSON format.");
+            }
+          } catch (err) {
+            alert("Error parsing JSON file.");
+          }
+        };
+        reader.readAsText(fileInput.files[0]);
+      }
+    </script>
+  </body>
+</html>
